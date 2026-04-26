@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
 
-# --- 1. 初始化与样式 ---
-st.set_page_config(page_title="Executive PMS v4.2", layout="wide")
+# --- 1. 配置与高级样式 ---
+st.set_page_config(page_title="Executive PMS v5.2", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #f1f5f9; }
+    .main { background-color: #f8fafc; }
     .stButton>button { width: 100%; border-radius: 10px; height: 3.2em; font-weight: 600; }
     .room-card {
         padding: 20px; border-radius: 15px; background: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 8px solid #ddd;
         margin-bottom: 15px; min-height: 130px;
     }
-    .bill-header { background-color: #1e293b; color: white; padding: 15px; border-radius: 10px 10px 0 0; }
-    .bill-body { background-color: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; }
+    .bill-box { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -27,14 +26,14 @@ if 'rooms_db' not in st.session_state:
         "201": {"type": "双床房", "price": 250.0, "status": "Clean", "guest": None},
         "202": {"type": "双床房", "price": 250.0, "status": "OOO", "guest": None},
     }
+    # history 增加 is_refund 字段
     st.session_state.update({'page': 'home', 'history': [], 'audit_logs': [], 'temp': {}, 'paid': False})
 
-def navigate_to(target):
+def nav(target):
     st.session_state.page = target
     st.rerun()
 
-def add_audit(action, detail):
-    """原子级审计记录"""
+def add_log(action, detail):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.session_state.audit_logs.append({"时间": now, "操作": action, "详情": detail})
 
@@ -46,10 +45,16 @@ if st.session_state.page == 'home':
     st.title("🏨 鸿蒙智慧酒店管理系统")
     
     rooms = st.session_state.rooms_db
-    c1, c2, c3, c4 = st.columns(4)
+    # 动态计算营收：正常订单 - 退款订单
+    total_revenue = sum(h['total'] for h in st.session_state.history if not h.get('is_refund', False))
+    total_refund = sum(h['total'] for h in st.session_state.history if h.get('is_refund', False))
+    net_revenue = total_revenue - total_refund
+
+    c1, c2, c3 = st.columns(3)
     c1.metric("入住率", f"{(sum(1 for r in rooms.values() if r['guest'])/len(rooms))*100:.1f}%")
-    c3.metric("营收总计", f"RM {sum(h.get('total',0) for h in st.session_state.history):.2f}")
-    
+    c2.metric("净营收 (扣除退款)", f"RM {net_revenue:.2f}")
+    c3.metric("待清扫", f"{sum(1 for r in rooms.values() if r['status']=='Dirty')} 间")
+
     st.divider()
     room_cols = st.columns(5)
     for idx, (no, info) in enumerate(rooms.items()):
@@ -63,118 +68,136 @@ if st.session_state.page == 'home':
 
     st.write("")
     nav_btns = st.columns(5)
-    if nav_btns[0].button("📝 入住登记", type="primary"): navigate_to('in')
-    if nav_btns[1].button("🔑 批量退房"): navigate_to('out')
-    if nav_btns[2].button("🧹 批量维护"): navigate_to('batch')
-    if nav_btns[3].button("📊 财务与审计"): navigate_to('report')
+    if nav_btns[0].button("📝 入住登记", type="primary"): nav('in')
+    if nav_btns[1].button("🔑 批量退房"): nav('out')
+    if nav_btns[2].button("🧹 批量维护"): nav('batch')
+    if nav_btns[3].button("📊 报表与退款"): nav('report')
 
 # 【入住登记】
 elif st.session_state.page == 'in':
     st.title("旅客登记")
     can_use = {k: f"{k} ({v['type']})" for k, v in st.session_state.rooms_db.items() if v['status'] == 'Clean' and not v['guest']}
-    with st.form("in_f"):
+    with st.form("in_form"):
         c1, c2 = st.columns(2)
         name, ic = c1.text_input("姓名"), c2.text_input("证件号")
         rs = st.multiselect("选择房号", options=list(can_use.keys()), format_func=lambda x: can_use[x])
         ds = st.date_input("入住与离店日期", [date.today(), date.today() + timedelta(1)])
-        if st.form_submit_button("核算账单"):
+        if st.form_submit_button("去核算账单"):
             if name and rs and len(ds) == 2 and (ds[1]-ds[0]).days > 0:
-                st.session_state.temp = {"name": name, "ic": ic, "rs": rs, "days": (ds[1]-ds[0]).days, "checkin": ds[0], "checkout": ds[1]}
-                navigate_to('pay')
+                st.session_state.temp = {"name": name, "ic": ic, "rs": rs, "days": (ds[1]-ds[0]).days, "checkin": ds[0], "checkout": ds[1], "id": datetime.now().strftime("%Y%m%d%H%M%S")}
+                nav('pay')
             else: st.error("请完整填写，且日期有效")
-    if st.button("返回首页"): navigate_to('home')
+    if st.button("返回首页"): nav('home')
 
-# 【账单确认：表格累加明细】
+# 【结算确认：表格化账单】
 elif st.session_state.page == 'pay':
-    st.title("结算确认")
+    st.title("账单确认")
     t = st.session_state.temp
     if st.session_state.paid:
-        st.success("✅ 支付成功!")
-        if st.button("回到主页"): st.session_state.temp = {}; navigate_to('home')
+        st.success("✅ 支付成功！")
+        if st.button("回到主页", type="primary"): 
+            st.session_state.temp = {}
+            nav('home')
+    elif not t:
+        st.warning("暂无数据"); st.button("返回首页", on_click=lambda: nav('home'))
     else:
-        # 构造发票明细表格
-        bill_items = []
-        total_base = 0
+        # 表格明细生成
+        items = []
+        base = 0
         for r in t['rs']:
             info = st.session_state.rooms_db[r]
             sub = info['price'] * t['days']
-            bill_items.append({"房号": f"{r} ({info['type']})", "单价": f"RM {info['price']}", "天数": t['days'], "小计金额": f"RM {sub:.2f}"})
-            total_base += sub
+            items.append({"项目": f"房间 {r} ({info['type']})", "单价": f"RM {info['price']}", "天数": t['days'], "金额": f"RM {sub:.2f}"})
+            base += sub
         
-        sst, ttax = total_base * 0.06, 10.0 * len(t['rs']) * t['days']
-        grand_total = total_base + sst + ttax + 100.0
+        sst, ttax = base * 0.06, 10.0 * len(t['rs']) * t['days']
+        total = base + sst + ttax + 100.0
 
-        st.markdown(f"""<div class="bill-header"><b>住宿预订详情清单</b></div>""", unsafe_allow_html=True)
-        with st.container():
-            st.markdown(f"""<div class="bill-body">
-                <p><b>住客姓名:</b> {t['name']} &nbsp;&nbsp; | &nbsp;&nbsp; <b>证件号:</b> {t['ic']}</p>
-                <p><b>入住日期:</b> {t['checkin']} &nbsp;&nbsp; | &nbsp;&nbsp; <b>退房日期:</b> {t['checkout']} &nbsp;&nbsp; | &nbsp;&nbsp; <b>共计:</b> {t['days']} 晚</p>
-                </div>""", unsafe_allow_html=True)
-            
-            st.table(pd.DataFrame(bill_items)) # 费用表格
-            
+        with st.container(border=True):
+            st.subheader(f"住客: {t['name']} | 入住: {t['checkin']} ➔ 退房: {t['checkout']} ({t['days']} 晚)")
+            st.table(pd.DataFrame(items))
             c1, c2 = st.columns([2,1])
             with c2:
-                st.write(f"房费总额: RM {total_base:.2f}")
-                st.write(f"政府税 (SST 6%): RM {sst:.2f}")
-                st.write(f"旅游税: RM {ttax:.2f}")
-                st.write(f"押金 (Deposit): RM 100.00")
-                st.markdown(f"### 应收总额: RM {grand_total:.2f}")
+                st.write(f"房费总计: RM {base:.2f}")
+                st.write(f"SST (6%): RM {sst:.2f} | 旅游税: RM {ttax:.2f}")
+                st.write(f"预收押金: RM 100.00")
+                st.markdown(f"### 总额: RM {total:.2f}")
 
-        col_p1, col_p2, col_p3 = st.columns(3)
-        if col_p1.button("✅ 确认支付成功", type="primary"):
+        col_p = st.columns(3)
+        if col_p[0].button("✅ 确认支付", type="primary"):
             for r in t['rs']: st.session_state.rooms_db[r].update({"guest": t['name'], "status": "Dirty"})
-            st.session_state.history.append({**t, "total": grand_total, "rooms_str": ", ".join(t['rs'])})
-            add_audit("登记入住", f"住客: {t['name']} | 房间: {', '.join(t['rs'])} | 金额: RM {grand_total:.2f}")
+            # 保存到历史记录
+            st.session_state.history.append({**t, "total": total, "rooms_str": ", ".join(t['rs']), "status": "已支付", "is_refund": False})
+            add_log("登记入住", f"住客 {t['name']}，房号 {', '.join(t['rs'])}，金额 RM {total:.2f}")
             st.session_state.paid = True
             st.rerun()
-        if col_p2.button("❌ 取消"): navigate_to('home')
-        if col_p3.button("⬅️ 返回修改"): navigate_to('in')
+        if col_p[1].button("❌ 取消"): nav('home')
+        if col_p[2].button("⬅️ 修改"): nav('in')
 
-# 【批量退房：审计集成】
+# 【批量退房】
 elif st.session_state.page == 'out':
     st.title("🔑 批量退房管理")
-    g_map = {info['guest']: [] for info in st.session_state.rooms_db.values() if info['guest']}
+    g_map = {}
     for r, info in st.session_state.rooms_db.items():
-        if info['guest']: g_map[info['guest']].append(f"{r}({info['type']})")
+        if info['guest']: g_map.setdefault(info['guest'], []).append(f"{r}({info['type']})")
     
     if g_map:
-        target = st.selectbox("选择住客", list(g_map.keys()))
-        if st.button("确认结账", type="primary"):
-            rooms_to_free = []
+        target = st.selectbox("选择离店住客", list(g_map.keys()))
+        if st.button("确认一键退房", type="primary"):
+            freed = []
             for r_str in g_map[target]:
                 r_no = r_str.split("(")[0]
                 st.session_state.rooms_db[r_no].update({"guest": None, "status": "Dirty"})
-                rooms_to_free.append(r_no)
-            add_audit("办理退房", f"住客: {target} | 释放房间: {', '.join(rooms_to_free)}")
-            st.success("退房完成"); st.button("完成", on_click=lambda: navigate_to('home'))
-    else: st.info("无在住旅客"); st.button("返回", on_click=lambda: navigate_to('home'))
+                freed.append(r_no)
+            add_log("办理退房", f"住客 {target} 已释放房间: {', '.join(freed)}")
+            st.success("退房完成")
+            if st.button("返回主页"): nav('home')
+    else: st.info("目前无住客"); st.button("返回", on_click=lambda: nav('home'))
 
-# 【批量维护：审计集成】
+# 【批量房态维护】
 elif st.session_state.page == 'batch':
     st.title("🧹 批量房态维护")
-    rooms_list = list(st.session_state.rooms_db.keys())
+    all_rs = list(st.session_state.rooms_db.keys())
     with st.container(border=True):
-        targets = st.multiselect("选择房号", rooms_list, default=rooms_list if st.checkbox("全选") else [])
-        new_stat = st.select_slider("目标状态", ["Clean", "Dirty", "OOO"])
-        if st.button("执行更新", type="primary"):
-            actual_updated = []
+        targets = st.multiselect("选择房号", all_rs, default=all_rs if st.checkbox("全选所有房间") else [])
+        new_stat = st.select_slider("设定状态", ["Clean", "Dirty", "OOO"])
+        if st.button("立即执行", type="primary"):
+            updated = []
             for r in targets:
                 if not st.session_state.rooms_db[r]['guest']:
                     st.session_state.rooms_db[r]['status'] = new_stat
-                    actual_updated.append(r)
-            add_audit("批量维护", f"房间: {', '.join(actual_updated)} -> 状态: {new_stat}")
-            st.success(f"已更新 {len(actual_updated)} 间房状态"); st.button("完成", on_click=lambda: navigate_to('home'))
-    if st.button("返回"): navigate_to('home')
+                    updated.append(r)
+            add_log("手动维护", f"房间 {', '.join(updated)} 设为 {new_stat}")
+            st.success(f"已更新 {len(updated)} 间房"); st.button("完成", on_click=lambda: nav('home'))
+    if st.button("返回"): nav('home')
 
-# 【报表与审计日志】
+# 【报表、退款与审计】
 elif st.session_state.page == 'report':
-    st.title("📊 报表与审计中心")
-    tab1, tab2 = st.tabs(["💰 营收记录", "📑 审计日志"])
+    st.title("📊 报表与财务管理")
+    tab1, tab2 = st.tabs(["💰 营收与退款办理", "📑 审计日志"])
+    
     with tab1:
-        if st.session_state.history: st.dataframe(pd.DataFrame(st.session_state.history)[['name', 'rooms_str', 'checkin', 'checkout', 'total']], use_container_width=True)
-        else: st.info("暂无记录")
+        if st.session_state.history:
+            df = pd.DataFrame(st.session_state.history)
+            st.write("### 交易流水")
+            # 显示每一笔订单及其退款状态
+            for idx, row in df.iterrows():
+                with st.expander(f"订单 {row['id']} - 住客: {row['name']} | 金额: RM {row['total']:.2f} | 状态: {row['status']}"):
+                    st.write(f"*房间:* {row['rooms_str']} | *周期:* {row['checkin']} 至 {row['checkout']}")
+                    if not row['is_refund']:
+                        if st.button(f"办理退款 (ID:{row['id']})", key=f"ref_{row['id']}"):
+                            # 执行退款逻辑
+                            st.session_state.history[idx]['is_refund'] = True
+                            st.session_state.history[idx]['status'] = "已退款"
+                            add_log("财务退款", f"为订单 {row['id']} (住客: {row['name']}) 办理全额退款 RM {row['total']:.2f}")
+                            st.success("退款已执行，财务数据已更新")
+                            st.rerun()
+                    else:
+                        st.warning("此订单已办理退款")
+        else: st.info("暂无交易记录")
+    
     with tab2:
         if st.session_state.audit_logs: st.table(pd.DataFrame(st.session_state.audit_logs).iloc[::-1])
-        else: st.info("暂无操作审计")
-    if st.button("返回主页"): navigate_to('home')
+        else: st.info("暂无操作日志")
+    
+    if st.button("返回主页"): nav('home')
