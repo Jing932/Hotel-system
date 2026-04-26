@@ -5,7 +5,7 @@ import pandas as pd
 # 初始化系统数据
 # ========================
 if "rooms" not in st.session_state:
-    st.session_state.rooms = 3  # 总房间
+    st.session_state.rooms = 5  # 总房间
 
 if "records" not in st.session_state:
     st.session_state.records = []  # 入住记录
@@ -19,13 +19,13 @@ if "cost" not in st.session_state:
 
 PRICE_PER_DAY = 100
 
-st.title("🏨 酒店管理系统（流程图版）")
+st.title("酒店管理系统")
 
 # ========================
 # 步骤1：输入客人资料
 # ========================
 if st.session_state.step == "start":
-    st.header("① 输入客人资料")
+    st.header("输入客人资料")
 
     name = st.text_input("客人姓名")
 
@@ -41,7 +41,7 @@ if st.session_state.step == "start":
 # 步骤2：判断是否有空房
 # ========================
 elif st.session_state.step == "check_room":
-    st.header("② 判断是否有空房")
+    st.header("判断是否有空房")
 
     if st.session_state.rooms <= 0:
         st.error("❌ 无空房")
@@ -56,7 +56,7 @@ elif st.session_state.step == "check_room":
 # 步骤3：分配房间
 # ========================
 elif st.session_state.step == "assign_room":
-    st.header("③ 分配房间")
+    st.header("分配房间")
 
     st.session_state.rooms -= 1
     st.success(f"已为 {st.session_state.name} 分配房间")
@@ -68,7 +68,7 @@ elif st.session_state.step == "assign_room":
 # 步骤4：办理入住
 # ========================
 elif st.session_state.step == "checkin":
-    st.header("④ 办理入住")
+    st.header("办理入住")
 
     days = st.number_input("请输入入住天数", min_value=1)
 
@@ -81,7 +81,7 @@ elif st.session_state.step == "checkin":
 # 步骤5：计算费用
 # ========================
 elif st.session_state.step == "calculate":
-    st.header("⑤ 计算费用")
+    st.header("计算费用")
 
     cost = st.session_state.days * PRICE_PER_DAY
     st.session_state.cost = cost
@@ -95,7 +95,7 @@ elif st.session_state.step == "calculate":
 # 步骤6：付款
 # ========================
 elif st.session_state.step == "payment":
-    st.header("⑥ 付款")
+    st.header("付款")
 
     st.write(f"应支付：{st.session_state.cost} 元")
 
@@ -114,7 +114,7 @@ elif st.session_state.step == "payment":
 # 步骤7：记录财务
 # ========================
 elif st.session_state.step == "record":
-    st.header("⑦ 记录财务资料")
+    st.header("记录财务资料")
 
     st.session_state.records.append({
         "姓名": st.session_state.name,
@@ -131,7 +131,7 @@ elif st.session_state.step == "record":
 # 步骤8：入住完成
 # ========================
 elif st.session_state.step == "complete":
-    st.header("⑧ 入住完成")
+    st.header("入住完成")
 
     st.success("🎉 入住完成！")
 
