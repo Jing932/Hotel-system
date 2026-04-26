@@ -59,6 +59,9 @@ elif st.session_state.page == 'in':
     c1, c2 = st.columns(2)
     name = c1.text_input("主登记人姓名", key="main_name")
     ic = c2.text_input("证件号", key="main_ic")
+    mobile = c3.text_input("电话号码", key="main_mobile")
+    email = c4.text_input("电子邮箱", key="main_email")
+
     
     st.write("---")
     st.subheader("2. 随行人员（调整人数即时增减）")
