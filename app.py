@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 
 # --- 1. 初始化 ---
-st.set_page_config(page_title="Executive PMS v7.2", layout="wide")
+st.set_page_config(page_title="Hotel system", layout="wide")
 
 if 'rooms_db' not in st.session_state:
     st.session_state.rooms_db = {
@@ -59,8 +59,6 @@ elif st.session_state.page == 'in':
     c1, c2 = st.columns(2)
     name = c1.text_input("主登记人姓名", key="main_name")
     ic = c2.text_input("证件号", key="main_ic")
-    mobile = c3.text_input("电话号码", key="main_mobile")
-    email = c4.text_input("电子邮箱", key="main_email")
 
     
     st.write("---")
@@ -142,7 +140,7 @@ elif st.session_state.page == 'price_admin':
     new_data = {}
     for i, (no, info) in enumerate(st.session_state.rooms_db.items()):
         new_data[no] = cols[i].number_input(f"房号 {no}", value=float(info['price']), key=f"ps_{no}")
-    if st.button("🔥 确认修改并保存", type="primary"):
+    if st.button("确认修改并保存", type="primary"):
         for no, price in new_data.items(): st.session_state.rooms_db[no]['price'] = price
         st.success("价格已更新"); nav('home')
     if st.button("⬅️ 返回"): nav('home')
