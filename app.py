@@ -834,50 +834,64 @@ elif st.session_state.page == "report":
     ])
 
     with tab1:
-        df = safe_df(st.session_state.history, ["time","uid","name","room_list","total","status"])
-        st.table(df) if not df.empty else st.info("暂无数据")
+        df = safe_df(st.session_state.history, ["time", "uid", "name", "room_list", "total", "status"])
+        # [span_5](start_span)修复点：改用标准 if-else 避免乱码[span_5](end_span)
+        if not df.empty:
+            st.table(df)
+        else:
+            st.info("暂无数据")
 
     with tab2:
-        df = safe_df(st.session_state.refunds, ["time","uid","name","amount","reason","by"])
-        st.table(df) if not df.empty else st.info("暂无退款记录")
+        df = safe_df(st.session_state.refunds, ["time", "uid", "name", "amount", "reason", "by"])
+        # [span_6](start_span)修复点：改用标准 if-else[span_6](end_span)
+        if not df.empty:
+            st.table(df)
+        else:
+            st.info("暂无退款记录")
 
     with tab3:
         q = st.text_input("输入姓名搜索")
         if q:
             matches = [h for h in st.session_state.history if q.lower() in h["name"].lower()]
-            df = safe_df(matches, ["time","uid","name","room_list","total","status"])
-            st.table(df) if not df.empty else st.warning("未找到匹配旅客")
+            df = safe_df(matches, ["time", "uid", "name", "room_list", "total", "status"])
+            # [span_7](start_span)修复点：改用标准 if-else[span_7](end_span)
+            if not df.empty:
+                st.table(df)
+            else:
+                st.warning("未找到匹配旅客")
 
     with tab4:
         records = [
             {
-                "退房时间": item.get("time","N/A"),
+                "退房时间": item.get("time", "N/A"),
                 "房号":     get_room_label(item["room"]),
-                "旅客":     item["snapshot"].get("guest","N/A"),
-                "证件号":   item["snapshot"].get("guest_ic","N/A"),
-                "订单UID":  item.get("uid","N/A"),
+                "旅客":     item["snapshot"].get("guest", "N/A"),
+                "证件号":   item["snapshot"].get("guest_ic", "N/A"),
+                "订单UID":  item.get("uid", "N/A"),
             }
             for item in st.session_state.checkout_history
         ]
         df = pd.DataFrame(records)
-        st.table(df) if not df.empty else st.info("暂无退房记录")
+        # [span_8](start_span)[span_9](start_span)修复点：改用标准 if-else[span_8](end_span)[span_9](end_span)
+        if not df.empty:
+            st.table(df)
+        else:
+            st.info("暂无退房记录")
 
     with tab5:
         st.subheader("入住率 & 净营收趋势")
-        stats = st.session_state.daily_stats
+        [span_10](start_span)stats = st.session_state.daily_stats[span_10](end_span)
         if len(stats) < 1:
-            st.info("完成至少一笔入住后，趋势图将自动生成。")
+            [span_11](start_span)st.info("完成至少一笔入住后，趋势图将自动生成。")[span_11](end_span)
         else:
-            df_stats = pd.DataFrame(stats).set_index("date")
-            col_a, col_b = st.columns(2)
+            [span_12](start_span)df_stats = pd.DataFrame(stats).set_index("date")[span_12](end_span)
+            [span_13](start_span)col_a, col_b = st.columns(2)[span_13](end_span)
             with col_a:
-                st.write("*入住间数趋势*")
-                st.bar_chart(df_stats[["occ"]])
+                st.write("入住间数趋势")
+                [span_14](start_span)st.bar_chart(df_stats[["occ"]])[span_14](end_span)
             with col_b:
-                st.write("*净营收趋势 (RM)*")
-                st.bar_chart(df_stats[["net_revenue"]])
-
-    # 报表页也提供 PDF 下载（经理专属）
+                st.write("净营收趋势 (RM)")
+                [span_15](start_span)st.bar_chart(df_stats[["net_revenue"]])[span_15](end_span)
    
 
     if st.button("⬅️ 返回主页"): nav_to("home"); st.rerun()
