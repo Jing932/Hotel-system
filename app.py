@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 import time
 
 # --- 1. 全局史诗级视觉样式引擎 (规范化重构) ---
-st.set_page_config(page_title="Harmony PMS Luxury v12.0", layout="wide")
+st.set_page_config(page_title="Harmony Hotel system v12.0", layout="wide")
 
 st.markdown("""
     <style>
@@ -337,7 +337,7 @@ elif st.session_state.page == 'refund':
 # 【功能：报表与实时日志】
 elif st.session_state.page == 'report':
     st.markdown("<h2 class='main-title'>综合审计报表</h2>", unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["💰 入账明细", "📄 退款原因日志", "🔍 旅客穿透查询"])
+    tab1, tab2, tab3 = st.tabs(["💰 入账明细", "📄 退款原因日志", "🔍 旅客查询"])
     
     with tab1:
         if st.session_state.history: st.table(pd.DataFrame(st.session_state.history)[['time', 'uid', 'name', 'room_list', 'total', 'status']])
