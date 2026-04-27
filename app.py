@@ -3,33 +3,81 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 import time
 
-# --- 1. 视觉 UI 引擎配置 ---
-st.set_page_config(page_title="Harmony PMS v11.0 Gold", layout="wide")
+# --- 1. 全局史诗级视觉样式引擎 (规范化重构) ---
+st.set_page_config(page_title="Harmony PMS Luxury v12.0", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #f1f5f9; }
-    .stApp { background: linear-gradient(to bottom, #f8fafc, #e2e8f0); }
-    [data-testid="stMetric"] {
-        background: white;
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        border-left: 5px solid #3b82f6;
+    /* 全局背景与字体规范 */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+    html, body, [class*="st-"] { font-family: 'Inter', sans-serif; color: #1e293b; }
+    
+    .stApp {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     }
-    .room-box {
-        padding: 22px;
-        border-radius: 18px;
-        background: white;
-        border: 1px solid #dee2e6;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    /* 统一卡片规范 (Room Cards & Metrics) */
+    .pms-card {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 20px;
     }
-    .room-box:hover { transform: scale(1.02); box-shadow: 0 15px 30px rgba(0,0,0,0.1); }
-    .status-tag { font-size: 0.85em; padding: 4px 10px; border-radius: 20px; font-weight: bold; }
+    .pms-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid #3b82f6;
+    }
+
+    /* 按钮规范统一 */
+    .stButton>button {
+        border-radius: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        height: 3.2rem !important;
+        transition: all 0.2s !important;
+        border: none !important;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1) !important;
+    }
+    .stButton>button:hover {
+        background: #3b82f6 !important;
+        color: white !important;
+        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4) !important;
+    }
+
+    /* 顶部导航与标题美化 */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #1e293b, #3b82f6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem;
+    }
+
+    /* 状态标签规范 */
+    .badge {
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .badge-clean { background: #dcfce7; color: #15803d; }
+    .badge-dirty { background: #fee2e2; color: #b91c1c; }
+    .badge-occ { background: #dbeafe; color: #1d4ed8; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. 核心状态初始化 (保持 v10.0 全部数据并新增风控字段) ---
+# --- 2. 核心状态初始化 (继承 v11.0 逻辑) ---
 if 'rooms_db' not in st.session_state:
     st.session_state.rooms_db = {
         "101": {"type": "大床房", "price": 200.0, "status": "Clean", "guest": None, "guest_ic": None, "phone": "", "email": "", "others": []},
@@ -39,17 +87,11 @@ if 'rooms_db' not in st.session_state:
         "202": {"type": "双床房", "price": 250.0, "status": "OOO",   "guest": None, "guest_ic": None, "phone": "", "email": "", "others": []},
     }
     st.session_state.update({
-        'page': 'home', 
-        'history': [], 
-        'refunds': [], 
-        'temp': {}, 
-        'paid': False,
-        'is_logged_in': False,
-        'checkout_history': [],
-        'refund_ledger': {} # 新增：记录订单 ID -> 已退款总额，防止重复退款
+        'page': 'home', 'history': [], 'refunds': [], 'temp': {}, 'paid': False,
+        'is_logged_in': False, 'checkout_history': [], 'refund_ledger': {}
     })
 
-# --- 3. 核心工具逻辑 ---
+# --- 3. 业务工具库 ---
 def nav_to(target):
     st.session_state.page = target
 
@@ -58,286 +100,284 @@ def get_room_label(room_no):
         return f"{room_no} ({st.session_state.rooms_db[room_no]['type']})"
     return room_no
 
-# --- 4. 员工安全网关 (abcd / 12345) ---
+# --- 4. 统一登录网关 (abcd / 12345) ---
 if not st.session_state.is_logged_in:
-    cols = st.columns([1, 1.5, 1])
-    with cols[1]:
-        st.markdown("<div style='margin-top:100px;'>", unsafe_allow_html=True)
-        st.title("🔐 鸿蒙系统安全认证")
-        with st.form("security_portal"):
-            user_input = st.text_input("工号")
-            pass_input = st.text_input("密码", type="password")
-            if st.form_submit_button("进入系统", use_container_width=True):
-                if user_input == "abcd" and pass_input == "12345":
-                    st.session_state.is_logged_in = True
-                    st.rerun()
-                else:
-                    st.error("认证失败，系统锁定中...")
-                    time.sleep(1)
-                    st.rerun()
+    _, center_col, _ = st.columns([1, 1.2, 1])
+    with center_col:
+        st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center;'>Executive Portal</h1>", unsafe_allow_html=True)
+        with st.container():
+            with st.form("luxury_login"):
+                u = st.text_input("STAFF ID", placeholder="abcd")
+                p = st.text_input("ACCESS KEY", type="password", placeholder="***")
+                if st.form_submit_button("UNLOCK SYSTEM", use_container_width=True):
+                    if u == "abcd" and p == "12345":
+                        st.session_state.is_logged_in = True
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("Invalid Credentials. Access Denied.")
+                        time.sleep(1); st.rerun()
     st.stop()
 
-# --- 5. 业务模块 ---
+# --- 5. 核心业务页面模块 ---
 
-# 【页面：首页看板】
+# 【主页看板：房态全局监控】
 if st.session_state.page == 'home':
     st.session_state.paid = False 
-    st.title("🏨 鸿蒙智慧酒店管理系统")
+    st.markdown("<h1 class='main-title'>🏨 鸿蒙智慧酒店管理系统</h1>", unsafe_allow_html=True)
     
-    # 财务数据透视
-    gross_in = sum(h['total'] for h in st.session_state.history)
-    gross_out = sum(r['amount'] for r in st.session_state.refunds)
+    # 顶部统计区 (规范化 metric 显示)
+    g_in = sum(h['total'] for h in st.session_state.history)
+    g_out = sum(r['amount'] for r in st.session_state.refunds)
     
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("实时出租率", f"{(sum(1 for r in st.session_state.rooms_db.values() if r['guest'])/5)*100:.0f}%")
-    m2.metric("净营收 (Net)", f"RM {gross_in - gross_out:.2f}")
-    m3.metric("累计退款额", f"RM {gross_out:.2f}", delta=f"{len(st.session_state.refunds)} 笔")
-    m4.metric("洁净空房", f"{sum(1 for r in st.session_state.rooms_db.values() if r['status']=='Clean' and not r['guest'])} 间")
+    m_cols = st.columns(4)
+    with m_cols[0]: st.metric("入住率", f"{(sum(1 for r in st.session_state.rooms_db.values() if r['guest'])/5)*100:.0f}%")
+    with m_cols[1]: st.metric("当日净营收", f"RM {g_in - g_out:.2f}")
+    with m_cols[2]: st.metric("待处理退款", f"{len(st.session_state.refunds)} 笔")
+    with m_cols[3]: st.metric("可用洁净房", f"{sum(1 for r in st.session_state.rooms_db.values() if r['status']=='Clean' and not r['guest'])} 间")
 
-    st.divider()
-    # 房态格点渲染
-    grid = st.columns(5)
-    for idx, (room_id, d) in enumerate(st.session_state.rooms_db.items()):
-        with grid[idx]:
-            occupied = d['guest'] is not None
-            theme = "#ef4444" if occupied else ("#22c55e" if d['status']=="Clean" else "#f97316")
+    st.markdown("### 🛏️ 实时房态监控")
+    # 房态栅格化
+    room_grid = st.columns(5)
+    for idx, (r_id, r_info) in enumerate(st.session_state.rooms_db.items()):
+        with room_grid[idx]:
+            is_occ = r_info['guest'] is not None
+            badge_class = "badge-occ" if is_occ else ("badge-clean" if r_info['status']=="Clean" else "badge-dirty")
             st.markdown(f"""
-                <div class='room-box' style='border-top: 5px solid {theme};'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <b style='font-size: 1.4em;'>{room_id}</b>
-                        <span style='color: {theme}; background: {theme}22;' class='status-tag'>{d['status']}</span>
+                <div class='pms-card'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <span style='font-size:1.5rem; font-weight:800;'>{r_id}</span>
+                        <span class='badge {badge_class}'>{r_info['status']}</span>
                     </div>
-                    <p style='color: #64748b; margin: 5px 0;'>{d['type']}</p>
-                    <hr style='margin: 10px 0; border: 0; border-top: 1px solid #eee;'>
-                    <div style='font-weight: 600; min-height: 24px;'>
-                        {'👤 '+d['guest'] if occupied else '---'}
+                    <div style='color:#64748b; font-size:0.85rem; margin-top:4px;'>{r_info['type']}</div>
+                    <div style='margin-top:20px; font-weight:600;'>
+                        {('👤 ' + r_info['guest']) if is_occ else '✨ Available'}
+                    </div>
+                    <div style='font-size:0.75rem; color:#94a3b8; margin-top:8px;'>
+                        Base Price: RM {r_info['price']}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-    st.write("")
-    ctrl = st.columns(7)
-    if ctrl[0].button("📝 登记入住", type="primary"): nav_to('in'); st.rerun()
-    if ctrl[1].button("🔑 批量退房"): nav_to('out'); st.rerun()
-    if ctrl[2].button("⚙️ 房价管理"): nav_to('price'); st.rerun()
-    if ctrl[3].button("🧹 房态维护"): nav_to('batch'); st.rerun()
-    if ctrl[4].button("📊 报表中心"): nav_to('report'); st.rerun()
-    if ctrl[5].button("💸 退款处理"): nav_to('refund'); st.rerun()
-    if ctrl[6].button("🚪 登出系统"): 
-        st.session_state.is_logged_in = False
-        st.rerun()
+    st.markdown("### ⚡ 快捷指令中心")
+    # 统一化操作按钮
+    nav_cols = st.columns(7)
+    if nav_cols[0].button("📝 登记入住", use_container_width=True): nav_to('in'); st.rerun()
+    if nav_cols[1].button("🔑 批量退房", use_container_width=True): nav_to('out'); st.rerun()
+    if nav_cols[2].button("⚙️ 房价管理", use_container_width=True): nav_to('price'); st.rerun()
+    if nav_cols[3].button("🧹 房态维护", use_container_width=True): nav_to('batch'); st.rerun()
+    if nav_cols[4].button("📊 报表中心", use_container_width=True): nav_to('report'); st.rerun()
+    if nav_cols[5].button("💸 退款处理", use_container_width=True): nav_to('refund'); st.rerun()
+    if nav_cols[6].button("🚪 安全退出", use_container_width=True): 
+        st.session_state.is_logged_in = False; st.rerun()
 
-# 【页面：登记入住】
+# 【功能：登记入住 - 规范化输入】
 elif st.session_state.page == 'in':
-    st.title("登记入住 - 旅客信息采集")
-    st.subheader("1. 负责人核心档案")
-    c1, c2 = st.columns(2)
-    p_name = c1.text_input("姓名 *")
-    p_ic = c2.text_input("证件号 *")
-    p_tel = c1.text_input("联系电话 *")
-    p_mail = c2.text_input("邮箱地址 *")
+    st.markdown("<h2 class='main-title'>新旅客入住登记</h2>", unsafe_allow_html=True)
     
-    st.write("---")
-    st.subheader("2. 随行人员 (多录入引擎)")
-    s_num = st.number_input("随行人数", 0, 10, 0)
-    s_list = []
-    for i in range(int(s_num)):
-        sc1, sc2 = st.columns(2)
-        sn = sc1.text_input(f"随行人 {i+1} 姓名", key=f"s_n_{i}")
-        si = sc2.text_input(f"随行人 {i+1} 证件", key=f"s_i_{i}")
-        s_list.append({"name": sn, "ic": si})
+    with st.container():
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        st.subheader("1. 核心联系人信息")
+        c1, c2 = st.columns(2)
+        n = c1.text_input("全名 (Name) *")
+        i = c2.text_input("证件号 (ID/Passport) *")
+        p = c1.text_input("手机号 (Mobile) *")
+        e = c2.text_input("电子邮箱 (Email) *")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.write("---")
-    st.subheader("3. 房源核实")
-    avail_rooms = {k: get_room_label(k) for k, v in st.session_state.rooms_db.items() if v['status'] == 'Clean' and not v['guest']}
-    
-    with st.form("v11_form"):
-        sel_rs = st.multiselect("分配洁净客房 *", options=list(avail_rooms.keys()), format_func=lambda x: avail_rooms[x])
-        dates = st.date_input("入住起止 *", value=[date.today(), date.today() + timedelta(1)])
-        
-        if st.form_submit_button("核算账单"):
-            if len(dates) < 2 or dates[0] >= dates[1]:
-                st.error("日期区间非法：离店日期须晚于入住日期")
-            elif not (p_name and p_ic and p_tel and p_mail and sel_rs):
-                st.error("必填字段缺失，请检查 * 号项")
-            else:
-                uid = f"PMS-{datetime.now().strftime('%m%d%H%M%S')}"
-                st.session_state.temp = {
-                    "uid": uid, "name": p_name, "ic": p_ic, "phone": p_tel, "email": p_mail,
-                    "others": s_list, "rs": {r: st.session_state.rooms_db[r]['price'] for r in sel_rs},
-                    "days": (dates[1]-dates[0]).days, "checkin": dates[0], "checkout": dates[1]
-                }
-                nav_to('pay'); st.rerun()
-    if st.button("⬅️ 返回看板"): nav_to('home'); st.rerun()
+    with st.container():
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        st.subheader("2. 随行人员 (如有)")
+        s_count = st.number_input("随行人数", 0, 10, 0)
+        others_cache = []
+        for idx in range(int(s_count)):
+            sc1, sc2 = st.columns(2)
+            others_cache.append({
+                "name": sc1.text_input(f"随行人 {idx+1} 姓名", key=f"s_n_{idx}"),
+                "ic": sc2.text_input(f"随行人 {idx+1} 证件", key=f"s_i_{idx}")
+            })
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# 【页面：账单核对】
-elif st.session_state.page == 'pay':
-    st.title("结算清单核对")
-    data = st.session_state.temp
-    if st.session_state.paid:
-        st.success(f"入住成功！唯一识别码: {data['uid']}"); st.button("完成", on_click=lambda: nav_to('home'))
-    else:
-        st.info(f"单号: {data['uid']} | 客户: {data['name']}")
-        bill_data, sub = [], 0
-        for r, p in data['rs'].items():
-            cost = p * data['days']
-            sub += cost
-            bill_data.append({"账项": f"客房服务 - {get_room_label(r)}", "计费": f"RM {p} x {data['days']}晚", "小计": f"RM {cost:.2f}"})
-        
-        tax_val = sub * 0.06
-        total_val = sub + tax_val + 100.0
-        st.table(pd.DataFrame(bill_data + [{"账项": "政府SST (6%)", "计费": "-", "小计": f"RM {tax_val:.2f}"}, {"账项": "履约押金 (离店退)", "计费": "-", "小计": "RM 100.00"}]))
-        st.markdown(f"<h3 style='text-align:right;'>应缴总额: <span style='color:red;'>RM {total_val:.2f}</span></h3>", unsafe_allow_html=True)
-
-        pc1, pc2, pc3 = st.columns(3)
-        if pc1.button("✅ 确认支付入库", type="primary", use_container_width=True):
-            for r in data['rs'].keys():
-                st.session_state.rooms_db[r].update({
-                    "guest": data['name'], "guest_ic": data['ic'], "phone": data['phone'],
-                    "email": data['email'], "others": data['others'], "status": "Occupied", "current_uid": data['uid']
-                })
-            st.session_state.history.append({**data, "total": total_val, "room_list": ", ".join([get_room_label(r) for r in data['rs'].keys()]), "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "status": "Paid"})
-            st.session_state.paid = True; st.rerun()
-        if pc2.button("放弃本次登记", use_container_width=True): nav_to('home'); st.rerun()
-        if pc3.button("修改资料", use_container_width=True): nav_to('in'); st.rerun()
-
-# 【页面：批量退房与记忆系统】
-elif st.session_state.page == 'out':
-    st.title("离店结算与房态释放")
-    # 建立活跃住客映射
-    guests_in_house = {}
-    for r, v in st.session_state.rooms_db.items():
-        if v['guest']:
-            tag = f"{v['guest']} ({v['guest_ic']}) - UID: {v.get('current_uid', 'N/A')}"
-            guests_in_house[tag] = {"name": v['guest'], "ic": v['guest_ic'], "uid": v.get('current_uid')}
-
-    L, R = st.columns(2)
-    with L:
-        st.subheader("快捷退房办理")
-        if guests_in_house:
-            target_tag = st.selectbox("选择在店住客", list(guests_in_house.keys()))
-            info = guests_in_house[target_tag]
-            if st.button("执行退房并生成待清任务", type="primary"):
-                released = []
-                for r_no, r_data in st.session_state.rooms_db.items():
-                    if r_data['guest'] == info['name'] and r_data['guest_ic'] == info['ic']:
-                        released.append(r_no)
-                        st.session_state.checkout_history.append({"room": r_no, "snapshot": r_data.copy(), "ts": time.time()})
-                        st.session_state.rooms_db[r_no].update({"status": "Dirty", "guest": None, "guest_ic": None, "current_uid": None})
-                st.success(f"退房成功：{', '.join(released)} 已释放。")
-                time.sleep(0.5); st.rerun()
-        else: st.info("目前没有在店住客。")
-
-    with R:
-        st.subheader("🔄 退房撤销记忆")
-        if st.session_state.checkout_history:
-            recent_out = st.session_state.checkout_history[-5:][::-1]
-            for idx, item in enumerate(recent_out):
-                st.write(f"房: {get_room_label(item['room'])} | 客: {item['snapshot']['guest']}")
-                if st.button(f"撤销该房退房", key=f"undo_v11_{idx}"):
-                    st.session_state.rooms_db[item['room']] = item['snapshot']
-                    st.session_state.checkout_history.remove(item)
-                    st.success("状态已回滚"); st.rerun()
-        else: st.write("暂无历史操作。")
-    if st.button("⬅️ 返回主页"): nav_to('home'); st.rerun()
-
-# 【页面：风控退款系统 - 核心逻辑升级点】
-elif st.session_state.page == 'refund':
-    st.title("💸 财务安全退款中心")
-    if st.session_state.history:
-        # 建立订单选择器，显示房型备注
-        ref_map = {f"{h['uid']} | {h['name']} | 房: {h['room_list']}": idx for idx, h in enumerate(st.session_state.history)}
-        sel_order_key = st.selectbox("选择需退款的历史订单", list(ref_map.keys()))
-        target_h = st.session_state.history[ref_map[sel_order_key]]
-        order_id = target_h['uid']
-        
-        # 1. 核心防御：计算该订单已退金额，防止重复退款
-        already_refunded = st.session_state.refund_ledger.get(order_id, 0.0)
-        remaining_balance = target_h['total'] - already_refunded
-        
-        st.warning(f"订单总额: RM {target_h['total']} | 已退额: RM {already_refunded:.2f} | 剩余可退: RM {remaining_balance:.2f}")
-        
-        if remaining_balance <= 0:
-            st.error("🚫 该订单已全额退款，禁止重复操作。")
-        else:
-            r_amt = st.number_input("本次退款金额", 0.0, float(remaining_balance), 0.0)
-            r_msg = st.text_area("退款原因说明 (必填)")
+    with st.container():
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        st.subheader("3. 房源与周期")
+        avail = {k: get_room_label(k) for k, v in st.session_state.rooms_db.items() if v['status'] == 'Clean' and not v['guest']}
+        with st.form("in_form_v12"):
+            sel_rooms = st.multiselect("分配客房 *", options=list(avail.keys()), format_func=lambda x: avail[x])
+            date_pick = st.date_input("入住/退房日期 *", value=[date.today(), date.today() + timedelta(1)])
             
-            if st.button("确认退款申请", type="primary"):
-                if r_amt <= 0:
-                    st.error("退款金额必须大于 0")
-                elif not r_msg:
-                    st.error("必须填写退款原因以备审计")
+            if st.form_submit_button("核算账单预览", use_container_width=True):
+                if len(date_pick) < 2 or date_pick[0] >= date_pick[1]:
+                    st.error("❌ 无效日期：退房必须晚于入住")
+                elif not (n and i and p and e and sel_rooms):
+                    st.error("❌ 必填项缺失，请检查 * 标记字段")
                 else:
-                    # 更新风控账本
-                    st.session_state.refund_ledger[order_id] = already_refunded + r_amt
-                    # 记录详细日志（带原因）
-                    st.session_state.refunds.append({
-                        "uid": order_id, "name": target_h['name'], "amount": r_amt, 
-                        "reason": r_msg, "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-                    })
-                    # 更新历史订单状态
-                    new_status = "Fully Refunded" if (already_refunded + r_amt) >= target_h['total'] else "Partial Refund"
-                    st.session_state.history[ref_map[sel_order_key]]['status'] = new_status
-                    
-                    st.success(f"退款成功！已记录日志并更新财务看板。")
-                    time.sleep(1); nav_to('home'); st.rerun()
-    else: st.info("系统内尚无已支付订单。")
-    if st.button("⬅️ 返回"): nav_to('home'); st.rerun()
+                    u_code = f"UID-{datetime.now().strftime('%m%d%H%M%S')}"
+                    st.session_state.temp = {
+                        "uid": u_code, "name": n, "ic": i, "phone": p, "email": e,
+                        "others": others_cache, "rs": {r: st.session_state.rooms_db[r]['price'] for r in sel_rooms},
+                        "days": (date_pick[1]-date_pick[0]).days, "checkin": date_pick[0], "checkout": date_pick[1]
+                    }
+                    nav_to('pay'); st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("⬅️ 取消并返回看板"): nav_to('home'); st.rerun()
 
-# 【页面：报表与实时日志】
-elif st.session_state.page == 'report':
-    st.title("📊 酒店经营与财务报表")
-    t1, t2, t3 = st.tabs(["💰 成交订单明细", "📄 退款实时日志", "🔍 综合查询"])
-    
-    with t1:
-        if st.session_state.history:
-            rdf = pd.DataFrame(st.session_state.history)
-            rdf['随行人'] = rdf['others'].apply(lambda x: " / ".join([p['name'] for p in x]) if x else "-")
-            st.table(rdf[['time', 'uid', 'name', 'room_list', 'total', 'status', '随行人']])
-        else: st.write("暂无成交。")
-        
-    with t2:
-        st.subheader("退款历史原因及明细")
-        if st.session_state.refunds:
-            # 实时更新的退款日志，显示原因
-            refund_df = pd.DataFrame(st.session_state.refunds)
-            st.table(refund_df[['time', 'uid', 'name', 'amount', 'reason']])
-        else: st.write("暂无退款记录。")
-        
-    with t3:
-        search_kw = st.text_input("搜寻旅客姓名 (主客/随行人)")
-        if search_kw:
-            hits = []
-            for h in st.session_state.history:
-                names = [h['name'].lower()] + [o['name'].lower() for o in h['others']]
-                if any(search_kw.lower() in n for n in names):
-                    hits.append({"UID": h['uid'], "主客": h['name'], "入店": h['checkin'], "状态": h['status']})
-            if hits: st.table(pd.DataFrame(hits))
-            else: st.warning("未匹配到相关结果")
+# 【功能：账单支付 - 规范化展示】
+elif st.session_state.page == 'pay':
+    st.markdown("<h2 class='main-title'>账单支付确认</h2>", unsafe_allow_html=True)
+    t_data = st.session_state.temp
+    if st.session_state.paid:
+        st.success(f"入住成功！订单号: {t_data['uid']}"); st.button("返回首页", on_click=lambda: nav_to('home'))
+    else:
+        with st.container():
+            st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+            st.write(f"*负责人:* {t_data['name']} | *单号:* {t_data['uid']}")
+            st.divider()
+            
+            items, sub = [], 0
+            for r, pr in t_data['rs'].items():
+                cost = pr * t_data['days']
+                sub += cost
+                items.append({"描述": f"房费 - {get_room_label(r)}", "明细": f"RM {pr} x {t_data['days']}晚", "小计": f"RM {cost:.2f}"})
+            
+            tax = sub * 0.06
+            total = sub + tax + 100.0
+            st.table(pd.DataFrame(items + [{"描述": "SST (6%)", "明细": "-", "小计": f"RM {tax:.2f}"}, {"描述": "履约押金 (可退)", "明细": "-", "小计": "RM 100.00"}]))
+            st.markdown(f"<h2 style='text-align:right;'>应付总额: RM {total:.2f}</h2>", unsafe_allow_html=True)
+
+            pc1, pc2, pc3 = st.columns(3)
+            if pc1.button("✅ 确认支付", type="primary", use_container_width=True):
+                with st.spinner("处理中..."):
+                    for r in t_data['rs'].keys():
+                        st.session_state.rooms_db[r].update({
+                            "guest": t_data['name'], "guest_ic": t_data['ic'], "phone": t_data['phone'],
+                            "email": t_data['email'], "others": t_data['others'], "status": "Occupied", "current_uid": t_data['uid']
+                        })
+                    st.session_state.history.append({**t_data, "total": total, "room_list": ", ".join([get_room_label(r) for r in t_data['rs'].keys()]), "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "status": "Paid"})
+                    st.session_state.paid = True; st.rerun()
+            if pc2.button("❌ 放弃登记", use_container_width=True): nav_to('home'); st.rerun()
+            if pc3.button("⬅️ 返回修改", use_container_width=True): nav_to('in'); st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# 【功能：批量退房 & 撤销记忆】
+elif st.session_state.page == 'out':
+    st.markdown("<h2 class='main-title'>离店退房管理</h2>", unsafe_allow_html=True)
+    active_pool = {}
+    for r_no, v_info in st.session_state.rooms_db.items():
+        if v_info['guest']:
+            tag = f"{v_info['guest']} (ID: {v_info['guest_ic']}) | UID: {v_info.get('current_uid', 'N/A')}"
+            active_pool[tag] = {"name": v_info['guest'], "ic": v_info['guest_ic'], "uid": v_info.get('current_uid')}
+
+    c_left, c_right = st.columns(2)
+    with c_left:
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        st.subheader("快捷退房结算")
+        if active_pool:
+            target = st.selectbox("选择在店住客", list(active_pool.keys()))
+            info = active_pool[target]
+            if st.button("办理离店", type="primary", use_container_width=True):
+                rel = []
+                for r_no, r_val in st.session_state.rooms_db.items():
+                    if r_val['guest'] == info['name'] and r_val['guest_ic'] == info['ic']:
+                        rel.append(r_no)
+                        st.session_state.checkout_history.append({"room": r_no, "snapshot": r_val.copy()})
+                        st.session_state.rooms_db[r_no].update({"status": "Dirty", "guest": None, "guest_ic": None, "current_uid": None})
+                st.success(f"结算完成！房号 {', '.join(rel)} 已释放。"); time.sleep(0.5); st.rerun()
+        else: st.info("目前无住客记录。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c_right:
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        st.subheader("🔄 操作撤销记忆")
+        if st.session_state.checkout_history:
+            for idx, item in enumerate(st.session_state.checkout_history[-3:][::-1]):
+                st.write(f"房: {get_room_label(item['room'])} | 客: {item['snapshot']['guest']}")
+                if st.button(f"恢复入住状态 ({idx})", key=f"undo_v12_{idx}", use_container_width=True):
+                    st.session_state.rooms_db[item['room']] = item['snapshot']
+                    st.session_state.checkout_history.remove(item); st.rerun()
+        else: st.write("暂无最近操作。")
+        st.markdown("</div>", unsafe_allow_html=True)
     if st.button("⬅️ 返回主页"): nav_to('home'); st.rerun()
 
-# 【页面：房价配置】
-elif st.session_state.page == 'price':
-    st.title("⚙️ 房型定价管理")
-    p_grid = st.columns(5)
-    p_updates = {}
-    for i, (no, d) in enumerate(st.session_state.rooms_db.items()):
-        p_updates[no] = p_grid[i].number_input(f"{get_room_label(no)}", value=float(d['price']), key=f"price_v11_{no}")
-    if st.button("应用并保存全局房价", type="primary"):
-        for no, p in p_updates.items(): st.session_state.rooms_db[no]['price'] = p
-        st.success("调价生效。"); nav_to('home'); st.rerun()
+# 【功能：风控退款系统 - UI 规范化】
+elif st.session_state.page == 'refund':
+    st.markdown("<h2 class='main-title'>财务退款中心</h2>", unsafe_allow_html=True)
+    if st.session_state.history:
+        st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+        ref_options = {f"{h['uid']} | {h['name']} | Rooms: {h['room_list']}": i for i, h in enumerate(st.session_state.history)}
+        sel_key = st.selectbox("选择需办理退款的订单", list(ref_options.keys()))
+        t_order = st.session_state.history[ref_options[sel_key]]
+        
+        # 风控计算
+        refunded = st.session_state.refund_ledger.get(t_order['uid'], 0.0)
+        bal = t_order['total'] - refunded
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("订单总额", f"RM {t_order['total']:.2f}")
+        c2.metric("累计已退", f"RM {refunded:.2f}", delta=f"-{refunded:.2f}")
+        c3.metric("剩余可退", f"RM {bal:.2f}")
+        
+        if bal <= 0:
+            st.error("🚫 该订单已完成全额退款。")
+        else:
+            amt = st.number_input("退款额 (Refund Amount)", 0.0, float(bal), 0.0)
+            why = st.text_area("退款原因及审计备注 *")
+            if st.button("批准退款并生成凭证", type="primary", use_container_width=True):
+                if amt > 0 and why:
+                    st.session_state.refund_ledger[t_order['uid']] = refunded + amt
+                    st.session_state.refunds.append({"uid": t_order['uid'], "name": t_order['name'], "amount": amt, "reason": why, "time": datetime.now().strftime("%Y-%m-%d %H:%M")})
+                    st.session_state.history[ref_options[sel_key]]['status'] = "Fully Refunded" if (refunded + amt) >= t_order['total'] else "Partial Refund"
+                    st.success("退款成功！"); time.sleep(1); nav_to('home'); st.rerun()
+                else: st.warning("请填写完整的退款理由。")
+        st.markdown("</div>", unsafe_allow_html=True)
+    else: st.info("尚无成交订单。")
     if st.button("⬅️ 返回"): nav_to('home'); st.rerun()
 
-# 【页面：房态控制】
+# 【功能：报表与实时日志】
+elif st.session_state.page == 'report':
+    st.markdown("<h2 class='main-title'>综合审计报表</h2>", unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs(["💰 入账明细", "📄 退款原因日志", "🔍 旅客穿透查询"])
+    
+    with tab1:
+        if st.session_state.history: st.table(pd.DataFrame(st.session_state.history)[['time', 'uid', 'name', 'room_list', 'total', 'status']])
+        else: st.info("暂无数据")
+    with tab2:
+        if st.session_state.refunds: st.table(pd.DataFrame(st.session_state.refunds)[['time', 'uid', 'name', 'amount', 'reason']])
+        else: st.info("暂无记录")
+    with tab3:
+        q = st.text_input("请输入姓名查找")
+        if q:
+            matches = [h for h in st.session_state.history if q.lower() in h['name'].lower()]
+            if matches: st.table(pd.DataFrame(matches)[['time', 'uid', 'name', 'room_list']])
+            else: st.warning("未找到匹配旅客")
+    if st.button("⬅️ 返回主页"): nav_to('home'); st.rerun()
+
+# 【功能：房价配置】
+elif st.session_state.page == 'price':
+    st.markdown("<h2 class='main-title'>客房定价中心</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+    cols = st.columns(5)
+    upd = {}
+    for i, (no, d) in enumerate(st.session_state.rooms_db.items()):
+        upd[no] = cols[i].number_input(f"{get_room_label(no)}", value=float(d['price']), key=f"lux_p_{no}")
+    if st.button("保存全局变动", type="primary", use_container_width=True):
+        for no, p in upd.items(): st.session_state.rooms_db[no]['price'] = p
+        st.success("调价已同步。"); nav_to('home'); st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("⬅️ 返回"): nav_to('home'); st.rerun()
+
+# 【功能：房态控制】
 elif st.session_state.page == 'batch':
-    st.title("🧹 房态批量调度")
-    all_rooms_list = {k: get_room_label(k) for k in st.session_state.rooms_db.keys()}
-    target_rs = st.multiselect("目标房间", options=list(all_rooms_list.keys()), format_func=lambda x: all_rooms_list[x])
-    target_st = st.selectbox("设定状态为", ["Clean", "Dirty", "OOO (维修)"])
-    if st.button("执行状态同步"):
-        for r in target_rs:
+    st.markdown("<h2 class='main-title'>房态自动化调度</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='pms-card'>", unsafe_allow_html=True)
+    rooms = {k: get_room_label(k) for k in st.session_state.rooms_db.keys()}
+    targets = st.multiselect("目标房间", options=list(rooms.keys()), format_func=lambda x: rooms[x])
+    stat = st.selectbox("设定状态", ["Clean", "Dirty", "OOO (维修)"])
+    if st.button("执行状态同步", type="primary", use_container_width=True):
+        for r in targets:
             if not st.session_state.rooms_db[r]['guest']:
-                st.session_state.rooms_db[r]['status'] = "OOO" if "维修" in target_st else target_st
+                st.session_state.rooms_db[r]['status'] = "OOO" if "维修" in stat else stat
         st.success("同步完成。"); nav_to('home'); st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
     if st.button("⬅️ 返回"): nav_to('home'); st.rerun()
