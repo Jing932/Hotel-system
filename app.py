@@ -6,18 +6,18 @@ import copy
 import io
 
 # ── reportlab（PDF 收据）──────────────────────────────────────
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.platypus import (
-        SimpleDocTemplate, Table, TableStyle,
-        Paragraph, Spacer
-    )
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import cm
-    REPORTLAB_OK = True
-except ImportError:
-    REPORTLAB_OK = False
+#try:
+   # from reportlab.lib.pagesizes import A4
+    #from reportlab.lib import colors
+   # from reportlab.platypus import (
+       ## SimpleDocTemplate, Table, TableStyle,
+        #Paragraph, Spacer
+  #  )
+    #from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    #from reportlab.lib.units import cm
+    #REPORTLAB_OK = True
+#except ImportError:
+   # REPORTLAB_OK = False
 
 # ════════════════════════════════════════════════════════════════
 # 1. 页面配置 & 全局样式
@@ -878,22 +878,7 @@ elif st.session_state.page == "report":
                 st.bar_chart(df_stats[["net_revenue"]])
 
     # 报表页也提供 PDF 下载（经理专属）
-    if is_manager() and st.session_state.history:
-        st.divider()
-        st.subheader("📄 下载订单收据")
-        order_opts = {f"{h['uid']} | {h['name']}": h for h in st.session_state.history}
-        sel = st.selectbox("选择订单", list(order_opts.keys()), key="report_pdf_sel")
-        chosen = order_opts[sel]
-        if REPORTLAB_OK:
-            pdf_bytes = build_receipt_pdf(chosen)
-            st.download_button(
-                "⬇️ 下载 PDF 收据",
-                data=pdf_bytes,
-                file_name=f"receipt_{chosen['uid']}.pdf",
-                mime="application/pdf"
-            )
-        else:
-            st.info("需安装 reportlab 库才能生成 PDF。")
+   
 
     if st.button("⬅️ 返回主页"): nav_to("home"); st.rerun()
 
