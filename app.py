@@ -508,17 +508,7 @@ elif st.session_state.page == "pay":
 
         # 找到刚入住的订单，提供 PDF 下载
         order = next((h for h in st.session_state.history if h["uid"] == t["uid"]), None)
-        if order and REPORTLAB_OK:
-            pdf_bytes = build_receipt_pdf(order)
-            st.download_button(
-                "📄 下载入住收据 (PDF)",
-                data=pdf_bytes,
-                file_name=f"receipt_{t['uid']}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        elif not REPORTLAB_OK:
-            st.info("（需安装 reportlab 才能生成 PDF 收据）")
+        
 
         if st.button("返回首页", use_container_width=True):
             nav_to("home"); st.rerun()
