@@ -880,18 +880,18 @@ elif st.session_state.page == "report":
 
     with tab5:
         st.subheader("入住率 & 净营收趋势")
-        [span_10](start_span)stats = st.session_state.daily_stats[span_10](end_span)
+        stats = st.session_state.daily_stats
         if len(stats) < 1:
-            [span_11](start_span)st.info("完成至少一笔入住后，趋势图将自动生成。")[span_11](end_span)
+            [span_11](start_span)st.info("完成至少一笔入住后，趋势图将自动生成。")
         else:
-            [span_12](start_span)df_stats = pd.DataFrame(stats).set_index("date")[span_12](end_span)
-            [span_13](start_span)col_a, col_b = st.columns(2)[span_13](end_span)
+            df_stats = pd.DataFrame(stats).set_index("date")
+            col_a, col_b = st.columns(2)
             with col_a:
                 st.write("入住间数趋势")
-                [span_14](start_span)st.bar_chart(df_stats[["occ"]])[span_14](end_span)
+                st.bar_chart(df_stats[["occ"]])
             with col_b:
                 st.write("净营收趋势 (RM)")
-                [span_15](start_span)st.bar_chart(df_stats[["net_revenue"]])[span_15](end_span)
+                st.bar_chart(df_stats[["net_revenue"]])
    
 
     if st.button("⬅️ 返回主页"): nav_to("home"); st.rerun()
