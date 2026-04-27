@@ -108,7 +108,7 @@ if not st.session_state.is_logged_in:
         st.markdown("<h1 style='text-align:center;'>Executive Portal</h1>", unsafe_allow_html=True)
         with st.container():
             with st.form("luxury_login"):
-                u = st.text_input("STAFF ID", placeholder="abcd")
+                u = st.text_input("STAFF ID", placeholder="ABCD")
                 p = st.text_input("ACCESS KEY", type="password", placeholder="***")
                 if st.form_submit_button("UNLOCK SYSTEM", use_container_width=True):
                     if u == "abcd" and p == "12345":
@@ -125,7 +125,7 @@ if not st.session_state.is_logged_in:
 # 【主页看板：房态全局监控】
 if st.session_state.page == 'home':
     st.session_state.paid = False 
-    st.markdown("<h1 class='main-title'>🏨 鸿蒙智慧酒店管理系统</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'> 鸿蒙智慧酒店管理系统</h1>", unsafe_allow_html=True)
     
     # 顶部统计区 (规范化 metric 显示)
     g_in = sum(h['total'] for h in st.session_state.history)
@@ -134,7 +134,7 @@ if st.session_state.page == 'home':
     m_cols = st.columns(4)
     with m_cols[0]: st.metric("入住率", f"{(sum(1 for r in st.session_state.rooms_db.values() if r['guest'])/5)*100:.0f}%")
     with m_cols[1]: st.metric("当日净营收", f"RM {g_in - g_out:.2f}")
-    with m_cols[2]: st.metric("待处理退款", f"{len(st.session_state.refunds)} 笔")
+    with m_cols[2]: st.metric("退款", f"{len(st.session_state.refunds)} 笔")
     with m_cols[3]: st.metric("可用洁净房", f"{sum(1 for r in st.session_state.rooms_db.values() if r['status']=='Clean' and not r['guest'])} 间")
 
     st.markdown("### 🛏️ 实时房态监控")
