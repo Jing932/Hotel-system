@@ -503,7 +503,7 @@ if st.session_state.page == "home":
                     <div style='margin-top:20px; font-weight:600;'>
                     <div style='color:#64748b;font-size:0.85rem;margin-top:4px;'>{r_info['type']}</div>
                     <div style='margin-top:16px;font-weight:600;'>
-                        {('👤 ' + r_info['guest']) if is_occ else '✨ Available'}
+                        {('👤 ' + r_info['guest']) if is_occ else ''}#删available
                     </div>
                     <div style='font-size:0.75rem; color:#94a3b8; margin-top:8px;'>
                         Base Price: RM {r_info['price']}
