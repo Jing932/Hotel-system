@@ -381,7 +381,7 @@ if st.session_state.page == "home":
                     </div>
                     <div style='color:#64748b;font-size:0.85rem;margin-top:4px;'>{r_info['type']}</div>
                     <div style='margin-top:16px;font-weight:600;'>
-                        {('👤 ' + r_info['guest']) if is_occ else '~'}#available 
+                        {('👤 ' + r_info['guest']) if is_occ else '~'} 
                     </div>
                     <div style='font-size:0.75rem;color:#94a3b8;margin-top:6px;'>
                         Base: RM {r_info['price']}
