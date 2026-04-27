@@ -882,7 +882,7 @@ elif st.session_state.page == "report":
         st.subheader("入住率 & 净营收趋势")
         stats = st.session_state.daily_stats
         if len(stats) < 1:
-            [span_11](start_span)st.info("完成至少一笔入住后，趋势图将自动生成。")
+            st.info("完成至少一笔入住后，趋势图将自动生成。")
         else:
             df_stats = pd.DataFrame(stats).set_index("date")
             col_a, col_b = st.columns(2)
