@@ -304,11 +304,11 @@ if not st.session_state.is_logged_in:
     _, center_col, _ = st.columns([1, 1.2, 1])
     with center_col:
         st.markdown("<div style='height:100px;'></div>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align:center;'>🏨 Harmony Hotel</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center;'>登陆账号</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align:center;color:#64748b;'>Staff Portal v14.0</p>", unsafe_allow_html=True)
         with st.form("login_form"):
             u = st.text_input("Staff ID",   placeholder="asd / Ben")
-            p = st.text_input("Password",   type="password", placeholder="**")
+            p = st.text_input("Password",   type="password", placeholder="********")
             if st.form_submit_button("LOGIN", use_container_width=True):
                 if u in ACCOUNTS and ACCOUNTS[u]["password"] == p:
                     st.session_state.is_logged_in = True
@@ -343,7 +343,7 @@ for wu in st.session_state.wakeups:
 # 8. 主页看板
 # ════════════════════════════════════════════════════════════════
 if st.session_state.page == "home":
-    st.markdown("<h1 class='main-title'>🏨 鸿蒙智慧酒店管理系统 v14.0</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'> 鸿蒙智慧酒店管理系统 v14.0</h1>", unsafe_allow_html=True)
 
     # 顶部指标
     g_in        = sum(h["total"] for h in st.session_state.history)
@@ -381,7 +381,7 @@ if st.session_state.page == "home":
                     </div>
                     <div style='color:#64748b;font-size:0.85rem;margin-top:4px;'>{r_info['type']}</div>
                     <div style='margin-top:16px;font-weight:600;'>
-                        {('👤 ' + r_info['guest']) if is_occ else ''}#available 
+                        {('👤 ' + r_info['guest']) if is_occ else '~'}#available 
                     </div>
                     <div style='font-size:0.75rem;color:#94a3b8;margin-top:6px;'>
                         Base: RM {r_info['price']}
